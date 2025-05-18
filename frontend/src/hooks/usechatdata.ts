@@ -1,21 +1,14 @@
-import { useState } from 'react';
+import { useContext } from 'react';
+import { ChatContext } from '../Contexts/ChatContext';
 
-export function useChatData() {
-  const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
+export const useChatData = () => {
+  const context = useContext(ChatContext);
   
-  const parseFile = async (file: File): Promise<void> => {
-    const text = await file.text();
-    // Mock parse (replace with WASM later)
-    const mockMessages: WhatsAppMessage[] = Array(100).fill(0).map((_, i) => ({
-      id: `msg-${i}`,
-      timestamp: new Date(Date.now() - i * 60000),
-      sender: i % 2 === 0 ? "You" : "Friend",
-      content: `Sample message ${i}`,
-      isMedia: false,
-      isUser: i % 2 === 0,
-    }));
-    setMessages(mockMessages);
-  };
+  if (context === undefined) {
+    throw new Error('useChatData must be used within a ChatProvider');
+  }
+  
+  return context;
+};
 
-  return { messages, parseFile };
-}
+export default useChatData;

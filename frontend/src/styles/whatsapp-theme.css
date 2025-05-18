@@ -1,0 +1,55 @@
+@tailwind components;
+
+/* WhatsApp theme variables */
+:root {
+  --whatsapp-teal: #128C7E;
+  --whatsapp-teal-dark: #075E54;
+  --whatsapp-green-light: #DCF8C6;
+  --whatsapp-blue: #34B7F1;
+  --whatsapp-bg: #E5DDD5;
+  --whatsapp-chat-bg: #EBEBEB;
+}
+
+@layer components {
+  .bg-whatsapp-teal {
+    background-color: var(--whatsapp-teal);
+  }
+  
+  .bg-whatsapp-teal-dark {
+    background-color: var(--whatsapp-teal-dark);
+  }
+  
+  .bg-whatsapp-green-light {
+    background-color: var(--whatsapp-green-light);
+  }
+  
+  .bg-whatsapp-blue {
+    background-color: var(--whatsapp-blue);
+  }
+  
+  .bg-whatsapp-bg {
+    background-color: var(--whatsapp-bg);
+  }
+  
+  .text-whatsapp-teal {
+    color: var(--whatsapp-teal);
+  }
+  
+  .text-whatsapp-blue {
+    color: var(--whatsapp-blue);
+  }
+  
+  .border-whatsapp-teal {
+    border-color: var(--whatsapp-teal);
+  }
+}
+
+/* Dark mode theme adjustments */
+.dark {
+  --whatsapp-teal: #00a884;
+  --whatsapp-teal-dark: #008069;
+  --whatsapp-green-light: #005c4b;
+  --whatsapp-blue: #53bdeb;
+  --whatsapp-bg: #0b141a;
+  --whatsapp-chat-bg: #111b21;
+}

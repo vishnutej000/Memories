@@ -1,0 +1,55 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "whatsapp_memory_vault"
+version = "0.1.0"
+description = "A backend API for WhatsApp Memory Vault"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+dependencies = [
+    "fastapi>=0.95.1,<1.0.0",
+    "uvicorn>=0.22.0,<1.0.0",
+    "pydantic>=1.10.7,<2.0.0",
+    "python-multipart>=0.0.6,<1.0.0",
+    "aiofiles>=23.1.0,<24.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "nltk>=3.8.1,<4.0.0",
+    "scikit-learn>=1.2.2,<2.0.0",
+    "reportlab>=3.6.13,<4.0.0",
+    "redis>=4.5.4,<5.0.0",
+    "PyPDF2>=3.0.1,<4.0.0",
+    "Pillow>=9.5.0,<10.0.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.3.1,<8.0.0",
+    "pytest-asyncio>=0.21.0,<1.0.0"
+]
+
+[project.scripts]
+whatsapp-memory-vault = "whatsapp_memory_vault.main:cli"
+
+[tool.maturin]
+module-name = "whatsapp_parser"
+python-source = "src"
+features = ["pyo3/extension-module"]
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"

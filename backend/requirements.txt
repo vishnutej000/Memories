@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+aiofiles
+python-dotenv
+nltk
+scikit-learn
+reportlab
+redis
+PyPDF2
+Pillow
+pytest
+maturin
