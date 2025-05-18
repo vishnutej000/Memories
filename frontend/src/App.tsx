@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChatProvider } from './Contexts/chatcontext'
+import { ChatProvider } from './Contexts/ChatContext'
 import ChatView from './components/views/chatView'
 import DiaryView from './components/views/DairyView'
 
