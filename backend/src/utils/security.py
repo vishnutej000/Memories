@@ -1,11 +1,11 @@
 import os
 import base64
 import hashlib
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet # type: ignore
 import logging
 from datetime import datetime, timedelta
-import jwt
-from passlib.context import CryptContext
+import jwt # type: ignore
+from passlib.context import CryptContext # type: ignore
 
 logger = logging.getLogger(__name__)
 

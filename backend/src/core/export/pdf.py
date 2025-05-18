@@ -2,10 +2,10 @@ from typing import List, Optional
 import logging
 from io import BytesIO
 from datetime import datetime
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.pagesizes import letter # type: ignore
+from reportlab.lib import colors # type: ignore
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle # type: ignore
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image # type: ignore
 
 from src.models.schemas import Message
 

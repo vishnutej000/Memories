@@ -9,7 +9,7 @@ from src.models.schemas import Message, MessageType
 # In a real implementation, we would import the Rust module
 # But for now, we'll create a fallback Python implementation
 try:
-    import whatsapp_parser
+    import whatsapp_parser # type: ignore
     RUST_PARSER_AVAILABLE = True
 except ImportError:
     RUST_PARSER_AVAILABLE = False

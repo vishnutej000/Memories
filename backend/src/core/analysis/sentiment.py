@@ -2,8 +2,8 @@ from typing import List, Dict, Any
 from datetime import datetime
 import logging
 from collections import defaultdict
-import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import nltk # type: ignore
+from nltk.sentiment.vader import SentimentIntensityAnalyzer # type: ignore
 
 from src.models.schemas import Message, SentimentAnalysis, SentimentScore, DailySentiment, SentimentLabel
 

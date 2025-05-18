@@ -41,7 +41,7 @@ def check_nltk_data():
     Check if NLTK data is available and download if needed.
     """
     try:
-        import nltk
+        import nltk # type: ignore
         
         for resource in ["punkt", "stopwords", "vader_lexicon"]:
             try:

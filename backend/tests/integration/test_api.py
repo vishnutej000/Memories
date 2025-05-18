@@ -1,10 +1,10 @@
-import pytest
-from fastapi.testclient import TestClient
+import pytest # type: ignore
+from fastapi.testclient import TestClient # type: ignore
 import os
 import tempfile
 from pathlib import Path
 
-from main import app
+from main import app # type: ignore
 
 client = TestClient(app)
 

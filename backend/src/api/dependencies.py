@@ -1,5 +1,5 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status # type: ignore
+from fastapi.security import OAuth2PasswordBearer # type: ignore
 import logging
 
 logger = logging.getLogger(__name__)

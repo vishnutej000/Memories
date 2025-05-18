@@ -3,9 +3,9 @@ from collections import Counter, defaultdict
 from datetime import datetime
 import logging
 import re
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
+import nltk # type: ignore
+from nltk.tokenize import word_tokenize # type: ignore
+from nltk.corpus import stopwords # type: ignore
 
 from src.models.schemas import (
     Message, 

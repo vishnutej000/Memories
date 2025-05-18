@@ -1,12 +1,10 @@
-import sys
-import os
-
-# Add the current directory to Python path
-sys.path.insert(0, os.path.abspath('.'))
-
-# Import and run the app
-from src.main import app
-import uvicorn
+import uvicorn # type: ignore
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    # Run using uvicorn with import string
+    uvicorn.run(
+        "src.main:app",  # Use import string format "module:variable"
+        host="0.0.0.0",  # Listen on all network interfaces
+        port=8000,
+        reload=True,     # Enable hot-reloading for development
+    )
