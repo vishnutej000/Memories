@@ -5,12 +5,52 @@ import { format, parseISO } from 'date-fns';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const Sidebar: React.FC = () => {
-  const { activeChats, fetchChats, isLoading, error } = useChat();
+  const { activeChats, isLoading, error, fetchChats } = useChat();
   const navigate = useNavigate();
   
+  // Only call fetchChats if it's available
   useEffect(() => {
-    fetchChats();
+    if (typeof fetchChats === 'function') {
+      try {
+        fetchChats();
+      } catch (err) {
+        console.error("Error fetching chats in Sidebar:", err);
+      }
+    }
   }, [fetchChats]);
+  
+  // Safe check for date formatting
+  const formatDate = (dateString: string): string => {
+    try {
+      return format(parseISO(dateString), 'MMM d, yyyy');
+    } catch (error) {
+      console.error("Date formatting error:", error);
+      return dateString || 'Unknown date';
+    }
+  };
+  
+  // Safely get participants string
+  const getParticipantsString = (chat: any): string => {
+    if (!chat) return '';
+    
+    try {
+      if (chat.is_group_chat) {
+        return chat.filename || 'Group Chat';
+      }
+      
+      if (chat.participants && Array.isArray(chat.participants)) {
+        const filteredParticipants = chat.participants.filter((p: string) => p !== 'You');
+        return filteredParticipants.length > 0 
+          ? filteredParticipants.join(', ') 
+          : chat.filename || 'Chat';
+      }
+      
+      return chat.filename || 'Chat';
+    } catch (error) {
+      console.error("Error processing participants:", error);
+      return chat.filename || 'Chat';
+    }
+  };
   
   return (
     <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
@@ -49,13 +89,15 @@ const Sidebar: React.FC = () => {
                   className="block p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <div className="font-medium text-gray-700 dark:text-gray-200 truncate">
-                    {chat.is_group_chat 
-                      ? chat.filename 
-                      : chat.participants.filter(p => p !== 'You').join(', ') || chat.filename}
+                    {getParticipantsString(chat)}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {chat.message_count} messages · Last active {format(parseISO(chat.date_range.end), 'MMM d, yyyy')}
-                  </div>
+                  {chat.date_range && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {chat.message_count || 0} messages · Last active {
+                        formatDate(chat.date_range.end)
+                      }
+                    </div>
+                  )}
                 </Link>
               </li>
             ))}

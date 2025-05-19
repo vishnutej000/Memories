@@ -1,20 +1,19 @@
 export interface DiaryEntry {
+  id: string;
   chatId: string;
   date: string;
-  text: string;
-  emotion: Emotion;
-  has_audio: boolean;
-  audio_duration?: number;
-  created_at: string;
-  updated_at: string;
+  content: string;
+  audioUrl?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export type Emotion = 'happy' | 'sad' | 'angry' | 'neutral' | 'surprised' | 'fearful' | 'loving';
-
-export interface DiaryAudio {
-  chatId: string;
+export interface SaveDiaryEntryRequest {
   date: string;
-  blob: Blob;
-  duration: number;
-  created_at: string;
+  content: string;
 }
+
+export interface SearchDiaryEntriesResponse {
+  entries: DiaryEntry[];
+  total: number;
+}   

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useChat } from '../hooks/useChat';
-import { ExportService } from '../api/services/export.service';
+import { ExportService } from '../api/export.service';
 import { ExportOptions } from '../types/export.types';
 import LoadingScreen from '../components/common/LoadingScreen';
 import ErrorMessage from '../components/common/ErrorMessage';

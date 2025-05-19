@@ -9,17 +9,19 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = 'md',
   className = ''
 }) => {
-  const sizeClasses = {
-    sm: 'w-4 h-4 border-[2px]',
-    md: 'w-8 h-8 border-[3px]',
-    lg: 'w-12 h-12 border-[4px]'
+  const getSizeClass = () => {
+    switch (size) {
+      case 'sm': return 'w-4 h-4';
+      case 'lg': return 'w-10 h-10';
+      case 'md':
+      default: return 'w-6 h-6';
+    }
   };
   
   return (
-    <div 
-      className={`spinner ${sizeClasses[size]} ${className}`}
-      aria-label="Loading"
-    ></div>
+    <div className={`${className}`}>
+      <div className={`${getSizeClass()} border-2 border-t-primary-500 border-r-primary-500 border-b-primary-200 border-l-primary-200 rounded-full animate-spin`}></div>
+    </div>
   );
 };
 

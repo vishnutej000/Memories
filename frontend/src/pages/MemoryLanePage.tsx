@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { useChat } from '../hooks/useChat';
-import ChatBubble from '../components/chat/ChatBubble';
+import ChatBubble from '../components/chats/ChatBubble';
 import LoadingScreen from '../components/common/LoadingScreen';
 import ErrorMessage from '../components/common/ErrorMessage';
 

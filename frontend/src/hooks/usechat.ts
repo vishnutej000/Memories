@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { useIndexedDB } from './useIndexedDB';
 import { ChatService } from '../api/chat.service';
 import { ChatMessage, ChatMetadata, DateRange } from '../types/chat.types';
+import { ChatContext } from '../Contexts/ChatContext';
 
 export const useChat = (chatId?: string) => {
+  const { activeChats, fetchChats: contextFetchChats, isLoading: contextLoading, error: contextError } = useContext(ChatContext);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [metadata, setMetadata] = useState<ChatMetadata | null>(null);
   const [dateRanges, setDateRanges] = useState<DateRange[]>([]);
@@ -21,6 +23,7 @@ export const useChat = (chatId?: string) => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        
         // Try to get metadata from IndexedDB first
         const cachedMetadata = await db.get<ChatMetadata>('chat_metadata', chatId);
         
@@ -65,13 +68,14 @@ export const useChat = (chatId?: string) => {
     };
     
     fetchData();
-  }, [chatId]);
+  }, [chatId, db]);
   
   const fetchMessages = useCallback(async (page = 1, limit = 50) => {
     if (!chatId) return { messages: [], total: 0 };
     
     try {
       setLoading(true);
+      
       const result = await ChatService.getMessages(chatId, page, limit);
       
       // Add to existing messages if not page 1
@@ -210,17 +214,27 @@ export const useChat = (chatId?: string) => {
     }
   }, [chatId]);
 
+  // Ensure fetchChats is properly exposed from context
+  const fetchChats = useCallback(async () => {
+    if (typeof contextFetchChats === 'function') {
+      await contextFetchChats();
+    }
+  }, [contextFetchChats]);
+
   return {
+    activeChats,
     messages,
     metadata,
     dateRanges,
-    loading,
-    error,
+    loading: loading || contextLoading,
+    error: error || contextError,
     uploadProgress,
+    fetchChats,
     fetchMessages,
     fetchMessagesByDate,
     fetchDateRanges,
     uploadChat,
     searchMessages,
+    isLoading: loading || contextLoading
   };
 };

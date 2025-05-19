@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { SentimentService } from '../api/services/sentiment.service';
+import { SentimentService } from '../api/sentiment.service';
 import { SentimentAnalysis, DailySentiment, EmojiAnalysis } from '../types/sentiment.types';
 import { useIndexedDB } from './useIndexedDB';
 

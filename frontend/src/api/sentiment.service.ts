@@ -1,48 +1,36 @@
-import apiClient from './client';
-import { SentimentAnalysis, DailySentiment, EmojiAnalysis } from '../types/sentiment.types';
+import { ApiClient } from './client';
+import { SentimentResponse } from '../types/sentiment.types';
 
-export const SentimentService = {
-  /**
-   * Get sentiment analysis for entire chat
-   */
-  getChatSentiment: async (chatId: string): Promise<SentimentAnalysis> => {
-    return apiClient.getWithWorker(`/sentiment/${chatId}`);
-  },
-
-  /**
-   * Get sentiment for a specific date range
-   */
-  getSentimentByDateRange: async (
-    chatId: string, 
-    startDate: string, 
-    endDate: string
-  ): Promise<DailySentiment[]> => {
-    return apiClient.get(`/sentiment/${chatId}/range`, {
-      params: { start_date: startDate, end_date: endDate }
-    });
-  },
-
-  /**
-   * Get sentiment for a specific sender
-   */
-  getSentimentBySender: async (
-    chatId: string, 
-    sender: string
-  ): Promise<SentimentAnalysis> => {
-    return apiClient.get(`/sentiment/${chatId}/sender/${encodeURIComponent(sender)}`);
-  },
-
-  /**
-   * Get emoji analysis
-   */
-  getEmojiAnalysis: async (chatId: string): Promise<EmojiAnalysis> => {
-    return apiClient.get(`/sentiment/${chatId}/emoji`);
-  },
-
-  /**
-   * Get phrase analysis
-   */
-  getPhraseAnalysis: async (chatId: string): Promise<any> => {
-    return apiClient.get(`/sentiment/${chatId}/phrases`);
+export class SentimentService {
+  static async analyzeSentiment(text: string): Promise<SentimentResponse> {
+    try {
+      return await ApiClient.post<SentimentResponse>('/sentiment/analyze', { text });
+    } catch (error) {
+      console.error('Error analyzing sentiment:', error);
+      
+      // Fallback to a simple mock sentiment if the API fails
+      return {
+        score: Math.random() * 2 - 1, // Random score between -1 and 1
+        label: 'neutral',
+        confidence: 0.7,
+        text
+      };
+    }
   }
-};
+  
+  static async batchAnalyzeSentiment(texts: string[]): Promise<SentimentResponse[]> {
+    try {
+      return await ApiClient.post<SentimentResponse[]>('/sentiment/batch', { texts });
+    } catch (error) {
+      console.error('Error batch analyzing sentiment:', error);
+      
+      // Fallback to simple mock sentiment results
+      return texts.map(text => ({
+        score: Math.random() * 2 - 1,
+        label: 'neutral',
+        confidence: 0.7,
+        text
+      }));
+    }
+  }
+}

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import ChatContainer from '../components/chat/ChatContainer';
-import SearchBox from '../components/chat/SearchBox';
+import ChatContainer from '../components/chats/ChatContainer';
+import SearchBox from '../components/chats/SearchBox';
 import LoadingScreen from '../components/common/LoadingScreen';
 import ErrorMessage from '../components/common/ErrorMessage';
-import { useChat } from '../hooks/useChat';
+import { useChat } from '../hooks/usechat';
 
 const ChatPage: React.FC = () => {
   const { chatId } = useParams<{ chatId: string }>();

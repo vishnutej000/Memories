@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { DiaryService } from '../api/services/diary.service';
-import { DiaryEntry, Emotion } from '../types/diary.types';
+import { DiaryService } from '../api/dairy.service';
+import { DiaryEntry, Emotion } from '../types/dairy.types';
 import { useIndexedDB } from './useIndexedDB';
 
 export const useDiary = (chatId: string, date: string) => {

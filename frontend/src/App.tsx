@@ -4,18 +4,23 @@ import { ThemeProvider } from './Contexts/ThemeContext';
 import { AuthProvider } from './Contexts/AuthContext';
 import { ChatProvider } from './Contexts/ChatContext';
 import AppRoutes from './Routes/routes';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import ConnectionStatus from './components/common/ConnectionStatus';
 
-const App = () => {
+const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ChatProvider>
-          <Router>
-            <AppRoutes />
-          </Router>
-        </ChatProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <ChatProvider>
+            <Router>
+              <AppRoutes />
+              <ConnectionStatus />
+            </Router>
+          </ChatProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 };
 
