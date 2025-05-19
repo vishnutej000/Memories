@@ -1,173 +1,105 @@
-import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Message, parseWhatsAppChat } from '../lib/parser';
-import { getStoredData, storeData, clearAllData } from '../lib/storage';
+import React, { createContext, useState, useCallback, useEffect } from 'react';
+import { ChatFile, ChatMetadata } from '../types/chat.types';
+import { ChatService } from '../api/chat.service';
 
-interface ChatContextProps {
-  messages: Message[];
-  userIdentity: string | null;
-  loading: boolean;
+interface ChatContextType {
+  activeChats: ChatFile[];
+  selectedChat: ChatMetadata | null;
+  isLoading: boolean;
   error: string | null;
-  importChatFile: (file: File, userName: string) => Promise<void>;
-  addMessage: (message: Message) => void;
-  clearChat: () => Promise<void>;
-  exportData: () => Promise<Blob>;
-  exportPDF: () => Promise<void>;
+  fetchChats: () => Promise<void>;
+  selectChat: (chatId: string) => Promise<ChatMetadata | null>;
+  deleteChat: (chatId: string) => Promise<void>;
+  clearError: () => void;
 }
 
-const defaultContext: ChatContextProps = {
-  messages: [],
-  userIdentity: null,
-  loading: false,
+export const ChatContext = createContext<ChatContextType>({
+  activeChats: [],
+  selectedChat: null,
+  isLoading: false,
   error: null,
-  importChatFile: async () => {},
-  addMessage: () => {},
-  clearChat: async () => {},
-  exportData: async () => new Blob(),
-  exportPDF: async () => {},
-};
+  fetchChats: async () => {},
+  selectChat: async () => null,
+  deleteChat: async () => {},
+  clearError: () => {},
+});
 
-export const ChatContext = createContext<ChatContextProps>(defaultContext);
-
-interface ChatProviderProps {
-  children: ReactNode;
-}
-
-export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [userIdentity, setUserIdentity] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [activeChats, setActiveChats] = useState<ChatFile[]>([]);
+  const [selectedChat, setSelectedChat] = useState<ChatMetadata | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load data from storage on initial mount
+  // Fetch chats on mount
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        const storedData = await getStoredData();
-        
-        if (storedData) {
-          setMessages(storedData.messages || []);
-          setUserIdentity(storedData.userIdentity || null);
-        }
-      } catch (err) {
-        console.error('Error loading initial data:', err);
-        setError('Failed to load your chat data. Please try refreshing the page.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitialData();
+    fetchChats();
   }, []);
 
-  // Save data to storage whenever messages or userIdentity changes
-  useEffect(() => {
-    const saveData = async () => {
-      if (!loading) {
-        try {
-          await storeData({ messages, userIdentity });
-        } catch (err) {
-          console.error('Error saving data:', err);
-          setError('Failed to save your latest changes. Please check your storage permissions.');
-        }
+  const fetchChats = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const chats = await ChatService.getAllChats();
+      setActiveChats(chats);
+    } catch (err: any) {
+      console.error('Error fetching chats:', err);
+      setError(err.message || 'Failed to load chats');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const selectChat = useCallback(async (chatId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const result = await ChatService.getMessages(chatId, 1, 1);
+      setSelectedChat(result.metadata);
+      return result.metadata;
+    } catch (err: any) {
+      console.error('Error selecting chat:', err);
+      setError(err.message || 'Failed to load chat');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const deleteChat = useCallback(async (chatId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await ChatService.deleteChat(chatId);
+      setActiveChats(prev => prev.filter(chat => chat.id !== chatId));
+      if (selectedChat && selectedChat.id === chatId) {
+        setSelectedChat(null);
       }
-    };
+    } catch (err: any) {
+      console.error('Error deleting chat:', err);
+      setError(err.message || 'Failed to delete chat');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedChat]);
 
-    saveData();
-  }, [messages, userIdentity, loading]);
-
-  // Import chat from file
-  const importChatFile = useCallback(async (file: File, userName: string): Promise<void> => {
-    setLoading(true);
+  const clearError = useCallback(() => {
     setError(null);
-    
-    try {
-      const fileText = await file.text();
-      const parsedMessages = await parseWhatsAppChat(fileText);
-      
-      if (parsedMessages.length === 0) {
-        throw new Error('No messages found in the file. Please check the file format.');
-      }
-      
-      setMessages(parsedMessages);
-      setUserIdentity(userName);
-    } catch (err) {
-      console.error('Error importing chat:', err);
-      setError(err instanceof Error ? err.message : 'Failed to import chat file.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
   }, []);
 
-  // Add new message (for diary entries, etc.)
-  const addMessage = useCallback((message: Message) => {
-    setMessages(prev => [...prev, message]);
-  }, []);
-
-  // Clear all chat data
-  const clearChat = useCallback(async (): Promise<void> => {
-    try {
-      setLoading(true);
-      await clearAllData();
-      setMessages([]);
-      setUserIdentity(null);
-    } catch (err) {
-      console.error('Error clearing chat data:', err);
-      setError('Failed to clear your data. Please try again.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Export all data as JSON
-  const exportData = useCallback(async (): Promise<Blob> => {
-    const exportData = {
-      messages,
-      userIdentity,
-      exportDate: new Date().toISOString(),
-      version: '1.0.0',
-    };
-    
-    const jsonString = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    
-    return blob;
-  }, [messages, userIdentity]);
-
-  // Export as PDF
-  const exportPDF = useCallback(async (): Promise<void> => {
-    try {
-      // In a real app, this would use a PDF generation library or service
-      // This is a simplified mock implementation
-      console.log('Generating PDF for', messages.length, 'messages');
-      
-      // Simulate PDF generation time
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Normally, this would return a PDF blob or trigger a download
-      console.log('PDF export completed');
-    } catch (err) {
-      console.error('Error exporting PDF:', err);
-      setError('Failed to generate PDF. Please try again.');
-      throw err;
-    }
-  }, [messages]);
-
-  const value: ChatContextProps = {
-    messages,
-    userIdentity,
-    loading,
-    error,
-    importChatFile,
-    addMessage,
-    clearChat,
-    exportData,
-    exportPDF,
-  };
-
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+  return (
+    <ChatContext.Provider
+      value={{
+        activeChats,
+        selectedChat,
+        isLoading,
+        error,
+        fetchChats,
+        selectChat,
+        deleteChat,
+        clearError,
+      }}
+    >
+      {children}
+    </ChatContext.Provider>
+  );
 };
-
-export default ChatProvider;

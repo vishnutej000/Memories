@@ -1,147 +1,218 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useIndexedDB } from './useIndexedDB';
 
-interface UseAudioRecorderProps {
-  onRecordingComplete?: (audioBlob: Blob) => void;
-  maxDuration?: number; // Maximum recording time in seconds
-}
-
-interface UseAudioRecorderReturn {
-  isRecording: boolean;
-  recordingTime: number;
-  startRecording: () => Promise<void>;
-  stopRecording: () => void;
-  cancelRecording: () => void;
-  audioURL: string | null;
-}
-
-export const useAudioRecorder = ({
-  onRecordingComplete,
-  maxDuration = 300 // 5 minutes default
-}: UseAudioRecorderProps = {}): UseAudioRecorderReturn => {
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [recordingTime, setRecordingTime] = useState<number>(0);
-  const [audioURL, setAudioURL] = useState<string | null>(null);
+export const useAudioRecorder = (chatId: string, date: string) => {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   
-  // Clean up on unmount
+  const db = useIndexedDB();
+  
+  // Initialize audio element
   useEffect(() => {
+    audioElementRef.current = new Audio();
+    
+    audioElementRef.current.onended = () => {
+      setIsPlaying(false);
+    };
+    
     return () => {
-      if (timerRef.current) {
-        window.clearInterval(timerRef.current);
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.src = '';
       }
       
-      if (mediaRecorderRef.current && isRecording) {
-        mediaRecorderRef.current.stop();
-      }
-      
-      if (audioURL) {
-        URL.revokeObjectURL(audioURL);
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
       }
     };
-  }, [isRecording, audioURL]);
+  }, []);
+  
+  // Check for existing audio note on mount
+  useEffect(() => {
+    const checkExistingAudio = async () => {
+      try {
+        const audioNote = await db.getFromIndex<{
+          blob: Blob;
+          duration: number;
+        }>('audio_notes', 'by_chat_date', [chatId, date]);
+        
+        if (audioNote) {
+          setAudioBlob(audioNote.blob);
+          setRecordingTime(audioNote.duration);
+          
+          const url = URL.createObjectURL(audioNote.blob);
+          setAudioUrl(url);
+          
+          if (audioElementRef.current) {
+            audioElementRef.current.src = url;
+          }
+        }
+      } catch (err) {
+        console.error('Error checking for existing audio note:', err);
+      }
+    };
+    
+    checkExistingAudio();
+  }, [chatId, date, db]);
   
   // Start recording
-  const startRecording = useCallback(async (): Promise<void> => {
+  const startRecording = useCallback(async () => {
     try {
-      // Reset state
-      audioChunksRef.current = [];
-      setRecordingTime(0);
-      setAudioURL(null);
+      setError(null);
       
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
       
       // Create media recorder
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
       
-      // Set up data handling
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+      // Handle data available event
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
         }
       };
       
-      // Set up completion handling
-      mediaRecorder.onstop = () => {
-        if (audioChunksRef.current.length === 0) return;
+      // Handle recording stop
+      mediaRecorder.onstop = async () => {
+        // Create blob from chunks
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        setAudioBlob(audioBlob);
         
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // Create and set URL for playback
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+        }
         const url = URL.createObjectURL(audioBlob);
-        setAudioURL(url);
+        setAudioUrl(url);
         
-        if (onRecordingComplete) {
-          onRecordingComplete(audioBlob);
+        if (audioElementRef.current) {
+          audioElementRef.current.src = url;
         }
         
-        // Stop all audio tracks
-        stream.getAudioTracks().forEach(track => track.stop());
+        // Save to IndexedDB
+        await db.put('audio_notes', {
+          chatId,
+          date,
+          blob: audioBlob,
+          duration: recordingTime,
+          created_at: new Date().toISOString()
+        });
         
-        if (timerRef.current) {
-          window.clearInterval(timerRef.current);
-          timerRef.current = null;
+        // Stop and release media stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
         }
       };
       
       // Start recording
       mediaRecorder.start();
       setIsRecording(true);
+      setRecordingTime(0);
       
-      // Set up timer
+      // Start timer
       timerRef.current = window.setInterval(() => {
-        setRecordingTime(prev => {
-          // Auto-stop if max duration reached
-          if (prev >= maxDuration - 1) {
-            if (mediaRecorderRef.current) {
-              mediaRecorderRef.current.stop();
-              setIsRecording(false);
-            }
-            if (timerRef.current) {
-              window.clearInterval(timerRef.current);
-              timerRef.current = null;
-            }
-            return maxDuration;
-          }
-          return prev + 1;
-        });
+        setRecordingTime(prev => prev + 1);
       }, 1000);
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error starting recording:', err);
-      throw new Error('Could not access microphone. Please check your browser permissions.');
+      setError(err.message || 'Could not access microphone');
     }
-  }, [maxDuration, onRecordingComplete]);
+  }, [chatId, date, db, audioUrl, recordingTime]);
   
   // Stop recording
-  const stopRecording = useCallback((): void => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  }, [isRecording]);
-  
-  // Cancel recording
-  const cancelRecording = useCallback((): void => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       
-      // Clear chunks to prevent saving
-      audioChunksRef.current = [];
+      // Clear timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
   }, [isRecording]);
+  
+  // Toggle audio playback
+  const togglePlayback = useCallback(() => {
+    if (!audioElementRef.current || !audioUrl) return;
+    
+    if (isPlaying) {
+      audioElementRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioElementRef.current.play();
+      setIsPlaying(true);
+    }
+  }, [isPlaying, audioUrl]);
+  
+  // Delete recording
+  const deleteRecording = useCallback(async () => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.src = '';
+    }
+    
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    
+    setAudioBlob(null);
+    setIsPlaying(false);
+    
+    // Remove from IndexedDB
+    try {
+      await db.deleteItem('audio_notes', [chatId, date]);
+    } catch (err) {
+      console.error('Error deleting audio note:', err);
+    }
+  }, [chatId, date, db, audioUrl]);
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
   
   return {
     isRecording,
     recordingTime,
+    audioBlob,
+    audioUrl,
+    isPlaying,
+    error,
     startRecording,
     stopRecording,
-    cancelRecording,
-    audioURL
+    togglePlayback,
+    deleteRecording,
+    hasRecording: !!audioBlob
   };
 };
-
-export default useAudioRecorder;
