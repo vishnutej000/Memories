@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getAllChats } from '../services/whatsappService';
-import { hasAnyData, getStorageSize } from '../services/storageService';
+import { hasAnyData, getStorageSize, getAllChats } from '../services/storageservices';
 import { WhatsAppChat } from '../types';
 import { useTheme } from '../Components/contexts/ThemeContext';
-import Button from '../components/UI/Button';
-import Spinner from '../components/UI/Spinner';
-import Modal from '../components/UI/Modal';
-import WhatsAppUploader from '../components/FileUpload/WhatsAppUploader';
-import { formatDate } from '../utils/dateUtils';
+import Button from '../Components/UI/Button';
+import Spinner from '../Components/UI/Spinner';
+import Modal from '../Components/UI/Modal';
+import WhatsAppUploader from '../Components/FileUpload/WhatsAppUploader';
+import { formatDate } from '../utils/date.Utils';
 
 const Dashboard: React.FC = () => {
   const [chats, setChats] = useState<WhatsAppChat[]>([]);

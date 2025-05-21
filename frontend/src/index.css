@@ -1,3 +1,285 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Root variables */
+:root {
+  --primary-color: #22c55e;
+  --background-light: #f9fafb;
+  --background-dark: #111827;
+  --text-light: #1f2937;
+  --text-dark: #f3f4f6;
+}
+
+/* Base styles */
+html, body, #root {
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f9fafb;
+  color: #1f2937;
+  transition-property: background-color, color;
+  transition-duration: 200ms;
+}
+
+.dark body {
+  background-color: #111827;
+  color: #f3f4f6;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 0.25rem;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}
+
+/* WhatsApp-style chat bubbles */
+.chat-bubble {
+  position: relative;
+  max-width: 70%;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.chat-bubble-outgoing {
+  background-color: var(--primary-color);
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 0;
+}
+
+.chat-bubble-outgoing::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: -0.5rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: var(--primary-color);
+  clip-path: polygon(0 0, 0% 100%, 100% 100%);
+}
+
+.chat-bubble-incoming {
+  background-color: white;
+  color: #1f2937;
+  margin-right: auto;
+  border-bottom-left-radius: 0;
+}
+
+.dark .chat-bubble-incoming {
+  background-color: #374151;
+  color: #f3f4f6;
+}
+
+.chat-bubble-incoming::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -0.5rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: white;
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}
+
+.dark .chat-bubble-incoming::after {
+  background-color: #374151;
+}
+
+/* Custom utility classes */
+.chat-bubble-mine {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.chat-bubble-theirs {
+  background-color: white;
+  color: #1f2937;
+}
+
+.dark .chat-bubble-theirs {
+  background-color: #374151;
+  color: #f3f4f6;
+}
+
+/* Emotion selector styles */
+.emotion-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  width: 3.5rem;
+  height: 3.5rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.emotion-option:hover {
+  transform: scale(1.1);
+}
+
+.emotion-option.selected {
+  /* ring-width: 2px;
+  ring-color: var(--primary-color); */
+  background-color: rgba(34, 197, 94, 0.05);
+}
+
+.dark .emotion-option.selected {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+/* Loading spinner animation */
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  display: inline-block;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spinner 0.75s linear infinite;
+}
+
+/* File uploader */
+.file-drop-zone {
+  border-width: 2px;
+  border-style: dashed;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+  transition-property: background-color, border-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.file-drop-zone.active {
+  border-color: var(--primary-color);
+  background-color: rgba(34, 197, 94, 0.05);
+}
+
+.dark .file-drop-zone.active {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 0.5rem;
+  border-radius: 9999px;
+  overflow: hidden;
+  background-color: #e5e7eb;
+}
+
+.dark .progress-bar {
+  background-color: #374151;
+}
+
+.progress-bar-value {
+  height: 100%;
+  background-color: var(--primary-color);
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* WhatsApp-specific styles */
+.whatsapp-bg {
+  background-color: #e5f6f7;
+}
+
+/* Animation for mic recording */
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-recording {
+  animation: pulse-recording 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Format dates consistently */
+.date-header {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: #6b7280;
+  position: sticky;
+  top: 0;
+  background-color: #f9fafb;
+  z-index: 10;
+}
+
+.dark .date-header {
+  background-color: #111827;
+  color: #9ca3af;
+}
+
+/* Focus states for accessibility */
+button:focus-visible, 
+a:focus-visible, 
+input:focus-visible, 
+select:focus-visible, 
+textarea:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--primary-color), 0 0 0 4px rgba(255, 255, 255, 0.8);
+}
+
+.dark button:focus-visible,
+.dark a:focus-visible,
+.dark input:focus-visible,
+.dark select:focus-visible,
+.dark textarea:focus-visible {
+  box-shadow: 0 0 0 2px var(--primary-color), 0 0 0 4px rgba(17, 24, 39, 0.8);
+}
