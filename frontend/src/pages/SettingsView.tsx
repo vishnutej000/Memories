@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearAllData, exportDatabaseToFile, importDatabaseFromFile } from '../services/storageservices';
+import { clearAllData, exportDatabaseToFile, importDatabaseFromFile } from '../services/storageServices';
 import { useTheme } from '../Components/contexts/ThemeContext';
 import { getLocalStorageUsage } from '../Hooks/useLocalStorage';
 

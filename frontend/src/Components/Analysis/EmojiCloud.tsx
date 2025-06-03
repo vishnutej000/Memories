@@ -70,7 +70,7 @@ const EmojiCloud: React.FC<EmojiCloudProps> = ({ data, size = 'medium' }) => {
       .size([width, height])
       .words(cloudData)
       .padding(5)
-      .rotate(() => 0) // No rotation for emojis
+      .rotate(0) // No rotation for emojis
       .fontSize(d => (d as any).size)
       .on('end', draw);
     

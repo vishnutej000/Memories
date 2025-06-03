@@ -1,6 +1,6 @@
 import pytest # type: ignore
 from datetime import datetime
-from core.analysis.sentiment import analyze_chat_sentiment, get_sentiment_label # type: ignore
+from src.core.analysis.sentiment import analyze_chat_sentiment, get_sentiment_label # type: ignore
 from models.schemas import Message, MessageType, SentimentLabel # type: ignore
 
 def test_get_sentiment_label():

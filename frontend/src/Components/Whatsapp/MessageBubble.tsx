@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChatMessage } from '../../types';
-import { formatTime } from '../../utils/date.Utils';
+import { formatTime } from '../../utils/dateUtils';
 import { getSentimentEmoji } from '../../utils/messageUtils';
 import ContextMenu from './ContextMenu';
 

@@ -43,18 +43,42 @@ function parseWhatsAppChat(text: string): {
   // Normalize line endings
   const normalizedText = text.replace(/\r\n/g, '\n');
   const lines = normalizedText.split('\n');
-  
-  // WhatsApp message line pattern:
-  // [DD/MM/YY, HH:MM:SS] Sender: Message
-  // Or for newer formats:
-  // [DD/MM/YYYY, HH:MM:SS] Sender: Message
-  // Or for formats with 12h clock:
-  // [DD/MM/YY, HH:MM:SS AM/PM] Sender: Message
-  // Or for US format:
-  // [MM/DD/YY, HH:MM:SS] Sender: Message
-  
-  // The regex to match these patterns
-  const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}:\d{1,2}(?::\d{1,2})?(?:\s*[AP]M)?)\]\s*(.*?):\s*(.*)$/;
+    // WhatsApp message line patterns - multiple formats supported
+  const messagePatterns = [
+    // Pattern 1: [DD/MM/YYYY, HH:MM:SS] Participant: Message
+    /^\[(\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2})\] ([^:]+): (.+)$/,
+    // Pattern 2: DD/MM/YY, HH:MM AM/PM - Participant: Message
+    /^(\d{1,2}\/\d{1,2}\/\d{2,4}, \d{1,2}:\d{2} (?:AM|PM|am|pm)) - ([^:]+): (.+)$/,
+    // Pattern 3: DD/MM/YYYY, HH:MM - Participant: Message  
+    /^(\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}) - ([^:]+): (.+)$/,
+    // Pattern 4: MM/DD/YY, HH:MM - Participant: Message
+    /^(\d{1,2}\/\d{1,2}\/\d{2,4}, \d{1,2}:\d{2}) - ([^:]+): (.+)$/,
+    // Pattern 5: [DD/MM/YY HH:MM:SS] Participant: Message
+    /^\[(\d{1,2}\/\d{1,2}\/\d{2} \d{1,2}:\d{2}:\d{2})\] ([^:]+): (.+)$/
+  ];
+
+  // System message patterns to exclude
+  const systemMessagePatterns = [
+    /Messages and calls are end-to-end encrypted/i,
+    /You created group/i,
+    /created this group/i,
+    /added you/i,
+    /removed/i,
+    /left/i,
+    /joined using this group's invite link/i,
+    /Security code changed/i,
+    /<Media omitted>/i,
+    /This message was deleted/i
+  ];
+
+  function isSystemMessage(content: string): boolean {
+    return systemMessagePatterns.some(pattern => pattern.test(content));
+  }
+
+  function isSystemMessageLine(line: string): boolean {
+    // Pattern: DD/MM/YY, HH:MM am/pm - System message (no participant name)
+    return /^\d{1,2}\/\d{1,2}\/\d{2,4}, \d{1,2}:\d{2} (?:AM|PM|am|pm) - [^:]*$/.test(line);
+  }
   
   // Process each line
   let currentMessage: ChatMessage | null = null;
@@ -62,27 +86,46 @@ function parseWhatsAppChat(text: string): {
   const uniqueSenders = new Set<string>();
   let minDate: Date | null = null;
   let maxDate: Date | null = null;
-  
-  for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
     
-    // Try to match the line against the message pattern
-    const match = line.match(messageRegex);
+    // Skip lines that are clearly system messages without participants
+    if (isSystemMessageLine(line)) {
+      continue;
+    }
+      // Try each message pattern
+    let messageMatch = null;
     
-    if (match) {
+    for (let j = 0; j < messagePatterns.length; j++) {
+      const match = line.match(messagePatterns[j]);
+      if (match) {
+        messageMatch = match;
+        break;
+      }
+    }
+    
+    if (messageMatch) {
       // It's a new message, save the previous one if exists
       if (currentMessage) {
         messages.push(currentMessage);
       }
       
-      // Extract message parts
-      const [, datePart, timePart, sender, content] = match;
+      // Extract message parts based on pattern
+      const timestamp = messageMatch[1];
+      const sender = messageMatch[2].trim();
+      const content = messageMatch[3].trim();
       
+      // Skip system messages based on content
+      if (isSystemMessage(content)) {
+        currentMessage = null;
+        continue;
+      }
+        
       // Parse date
       try {
-        const timestamp = parseWhatsAppDate(`${datePart}, ${timePart}`);
-        const date = new Date(timestamp);
+        const parsedTimestamp = parseWhatsAppDate(timestamp);
+        const date = new Date(parsedTimestamp);
         
         // Update min/max dates
         if (!minDate || date < minDate) minDate = date;
@@ -96,7 +139,7 @@ function parseWhatsAppChat(text: string): {
           id: uuidv4(),
           sender: standardizeParticipantName(sender),
           content: content,
-          timestamp: timestamp,
+          timestamp: parsedTimestamp,
           isMedia: content.includes('<Media omitted>') ||
                    content.includes('<image omitted>') ||
                    content.includes('<video omitted>'),
@@ -110,7 +153,7 @@ function parseWhatsAppChat(text: string): {
           currentMessage.emojiCount = emojis.length;
         }
       } catch (error) {
-        console.error(`Error parsing date: ${datePart}, ${timePart}`, error);
+        console.error(`Error parsing date: ${timestamp}`, error);
         // Skip this message
         currentMessage = null;
       }

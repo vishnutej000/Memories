@@ -1,7 +1,7 @@
 import React from 'react';
 import { WhatsAppChat } from '../../types';
 import { getMostCommonWords } from '../../utils/messageUtils';
-import { formatDate } from '../../utils/date.Utils';
+import { formatDate } from '../../utils/dateUtils';
 
 interface MessageStatsProps {
   chat: WhatsAppChat;

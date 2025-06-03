@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { SearchCriteria, ChatMessage } from '../types';
-import { getChat } from '../services/storageservices';
+import { getChat } from '../services/storageServices';
 
 /**
  * Custom hook for searching messages in WhatsApp chats

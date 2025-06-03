@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getChat} from '../services/storageservices';
+import { getChat} from '../services/storageServices';
 import { WhatsAppChat, ChatMessage, SearchCriteria } from '../types';
 import { useSearch } from '../Hooks/useSearch';
 import { getHighActivityDays } from '../utils/messageUtils';
@@ -25,12 +25,12 @@ const WhatsAppViewer: React.FC = () => {
   const [chat, setChat] = useState<WhatsAppChat | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // UI state
+    // UI state
   const [showSearch, setShowSearch] = useState(false);
   const [showJumpToDate, setShowJumpToDate] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [viewAs, setViewAs] = useState<string>('You'); // Default view as self
+  const [filterMode, setFilterMode] = useState<'all' | 'participant'>('all'); // Message filter mode
   
   // Search functionality
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,10 +41,17 @@ const WhatsAppViewer: React.FC = () => {
     isSearching, 
     searchError 
   } = useSearch();
-  
-  // Date jump state
+    // Date jump state
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [keyEventDates, setKeyEventDates] = useState<Set<string>>(new Set());
+    // Computed values
+  const displayedMessageCount = useMemo(() => {
+    if (!chat) return 0;
+    if (filterMode === 'participant') {
+      return chat.messages.filter(msg => msg.sender === viewAs).length;
+    }
+    return chat.messageCount;
+  }, [chat, filterMode, viewAs]);
   
   // Load chat data
   useEffect(() => {
@@ -165,10 +172,9 @@ const WhatsAppViewer: React.FC = () => {
       
       {/* Main chat area */}
       <div className="flex-1 overflow-hidden">
-        <div className="container mx-auto h-full flex flex-col">
-          {/* Toolbar */}
+        <div className="container mx-auto h-full flex flex-col">          {/* Toolbar */}
           <div className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-600 dark:text-gray-400">View as:</span>
                 <UserSelector
@@ -176,6 +182,32 @@ const WhatsAppViewer: React.FC = () => {
                   value={viewAs}
                   onChange={setViewAs}
                 />
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Filter:</span>
+                <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                  <button
+                    onClick={() => setFilterMode('all')}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                      filterMode === 'all'
+                        ? 'bg-whatsapp-dark text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    All Messages
+                  </button>
+                  <button
+                    onClick={() => setFilterMode('participant')}
+                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                      filterMode === 'participant'
+                        ? 'bg-whatsapp-dark text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {viewAs} Only
+                  </button>
+                </div>
               </div>
               
               <Button
@@ -190,19 +222,23 @@ const WhatsAppViewer: React.FC = () => {
               >
                 Jump to Date
               </Button>
-            </div>
-            
+            </div>            
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              {chat.messageCount.toLocaleString()} messages
+              {displayedMessageCount.toLocaleString()} messages
+              {filterMode === 'participant' && (
+                <span className="ml-1 text-xs text-gray-500 dark:text-gray-500">
+                  (filtered)
+                </span>
+              )}
             </div>
           </div>
-          
-          {/* Messages */}
-          <MessageList
+            {/* Messages */}          <MessageList
             ref={messageListRef}
             messages={chat.messages}
             currentUser={viewAs}
             keyEventDates={keyEventDates}
+            filterMode={filterMode}
+            selectedParticipant={viewAs}
           />
         </div>
       </div>

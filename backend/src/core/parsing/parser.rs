@@ -21,8 +21,33 @@ fn parse_whatsapp_chat(file_path: &str, user_identity: &str) -> PyResult<Vec<PyO
     let python_gil = Python::acquire_gil();
     let py = python_gil.python();
     
-    // Regex pattern for WhatsApp message format
-    let pattern = Regex::new(r"^\[(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2})\] ([^:]+): (.+)$").unwrap();
+    // Multiple regex patterns for different WhatsApp formats
+    let patterns = vec![
+        Regex::new(r"^\[(\d{1,2}/\d{1,2}/\d{4}, \d{1,2}:\d{2}:\d{2})\] ([^:]+): (.+)$").unwrap(),
+        Regex::new(r"^(\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2} (?:AM|PM|am|pm)) - ([^:]+): (.+)$").unwrap(),
+        Regex::new(r"^(\d{1,2}/\d{1,2}/\d{4}, \d{1,2}:\d{2}) - ([^:]+): (.+)$").unwrap(),
+        Regex::new(r"^(\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2}) - ([^:]+): (.+)$").unwrap(),
+    ];
+    
+    // System message patterns to exclude
+    let system_patterns = vec![
+        Regex::new(r"Messages and calls are end-to-end encrypted").unwrap(),
+        Regex::new(r"You created group").unwrap(),
+        Regex::new(r"created this group").unwrap(),
+        Regex::new(r"added you").unwrap(),
+        Regex::new(r"removed").unwrap(),
+        Regex::new(r"left").unwrap(),
+        Regex::new(r"Security code changed").unwrap(),
+        Regex::new(r"<Media omitted>").unwrap(),
+        Regex::new(r"This message was deleted").unwrap(),
+    ];
+    
+    // System message line pattern (no participant name)
+    let system_line_pattern = Regex::new(r"^\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2} (?:AM|PM|am|pm) - [^:]*$").unwrap();
+    
+    fn is_system_message(content: &str, patterns: &Vec<Regex>) -> bool {
+        patterns.iter().any(|pattern| pattern.is_match(content))
+    }
     
     // Open the file
     let file = match File::open(Path::new(file_path)) {
@@ -34,65 +59,86 @@ fn parse_whatsapp_chat(file_path: &str, user_identity: &str) -> PyResult<Vec<PyO
     let mut messages = Vec::new();
     let mut message_id = 0;
     let mut current_message: Option<Message> = None;
-    
-    // Process each line
+      // Process each line
     for line in reader.lines() {
         let line = match line {
             Ok(line) => line,
             Err(e) => return Err(PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to read line: {}", e))),
         };
         
-        // Check if line matches message pattern
-        if let Some(captures) = pattern.captures(&line) {
-            // If we have a current message being built, finalize it
-            if let Some(mut message) = current_message.take() {
-                message_id += 1;
-                
-                // Determine message type based on content
-                if message.content.contains("<Media omitted>") {
-                    message.message_type = "media".to_string();
-                } else if message.content.starts_with("https://") || message.content.starts_with("http://") {
-                    message.message_type = "link".to_string();
-                } else {
-                    message.message_type = "text".to_string();
+        // Skip lines that are clearly system messages without participants
+        if system_line_pattern.is_match(&line) {
+            continue;
+        }
+        
+        // Try each pattern to find a match
+        let mut found_match = false;
+        for pattern in &patterns {
+            if let Some(captures) = pattern.captures(&line) {
+                // If we have a current message being built, finalize it
+                if let Some(mut message) = current_message.take() {
+                    message_id += 1;
+                    
+                    // Determine message type based on content
+                    if message.content.contains("<Media omitted>") {
+                        message.message_type = "media".to_string();
+                    } else if message.content.starts_with("https://") || message.content.starts_with("http://") {
+                        message.message_type = "link".to_string();
+                    } else {
+                        message.message_type = "text".to_string();
+                    }
+                    
+                    // Convert to Python dict
+                    let py_message = pyo3::types::PyDict::new(py);
+                    py_message.set_item("id", format!("msg_{}", message_id))?;
+                    py_message.set_item("timestamp", message.timestamp)?;
+                    py_message.set_item("sender", message.sender)?;
+                    py_message.set_item("content", message.content)?;
+                    py_message.set_item("type", message.message_type)?;
+                    
+                    messages.push(py_message.to_object(py));
                 }
                 
-                // Convert to Python dict
-                let py_message = pyo3::types::PyDict::new(py);
-                py_message.set_item("id", format!("msg_{}", message_id))?;
-                py_message.set_item("timestamp", message.timestamp)?;
-                py_message.set_item("sender", message.sender)?;
-                py_message.set_item("content", message.content)?;
-                py_message.set_item("type", message.message_type)?;
+                // Extract data from the new message
+                let timestamp_str = captures.get(1).unwrap().as_str();
+                let sender = captures.get(2).unwrap().as_str().to_string();
+                let content = captures.get(3).unwrap().as_str().to_string();
                 
-                messages.push(py_message.to_object(py));
+                // Skip system messages based on content
+                if is_system_message(&content, &system_patterns) {
+                    current_message = None;
+                    found_match = true;
+                    break;
+                }
+                
+                // Parse and format the timestamp
+                let dt = match parse_whatsapp_timestamp(timestamp_str) {
+                    Ok(dt) => dt,
+                    Err(e) => return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                        format!("Failed to parse timestamp: {}", e)
+                    )),
+                };
+                
+                // Create new message
+                current_message = Some(Message {
+                    id: format!("msg_{}", message_id + 1),
+                    timestamp: dt.to_rfc3339(),
+                    sender: sender,
+                    content: content,
+                    message_type: "text".to_string(), // Default type, will be updated later
+                });
+                
+                found_match = true;
+                break;
             }
-            
-            // Extract data from the new message
-            let timestamp_str = captures.get(1).unwrap().as_str();
-            let sender = captures.get(2).unwrap().as_str().to_string();
-            let content = captures.get(3).unwrap().as_str().to_string();
-            
-            // Parse and format the timestamp
-            let dt = match parse_whatsapp_timestamp(timestamp_str) {
-                Ok(dt) => dt,
-                Err(e) => return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("Failed to parse timestamp: {}", e)
-                )),
-            };
-            
-            // Create new message
-            current_message = Some(Message {
-                id: format!("msg_{}", message_id + 1),
-                timestamp: dt.to_rfc3339(),
-                sender: sender,
-                content: content,
-                message_type: "text".to_string(), // Default type, will be updated later
-            });
-        } else if let Some(ref mut message) = current_message {
-            // If this line doesn't match the pattern, it's a continuation of the previous message
-            message.content.push_str("\n");
-            message.content.push_str(&line);
+        }
+        
+        if !found_match {
+            if let Some(ref mut message) = current_message {
+                // If this line doesn't match any pattern, it's a continuation of the previous message
+                message.content.push_str("\n");
+                message.content.push_str(&line);
+            }
         }
     }
     

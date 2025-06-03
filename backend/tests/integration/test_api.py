@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from main import app # type: ignore
+from src.main import app # type: ignore
 
 client = TestClient(app)
 

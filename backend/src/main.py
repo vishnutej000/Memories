@@ -1,16 +1,26 @@
 # Current Date and Time (UTC - YYYY-MM-DD HH:MM:SS formatted): 2025-05-19 07:58:51
 # Current User's Login: vishnutej000
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.security import HTTPBearer
 import time
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import json
+from datetime import datetime
+from textblob import TextBlob
+import os
+from pathlib import Path
+import shutil
+from src.core.parsing.adapter import parse_with_python
+from pydantic import BaseModel
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 logger = logging.getLogger("memories-api")
@@ -19,20 +29,33 @@ logger = logging.getLogger("memories-api")
 from src.api.v1.chats import router as chats_router
 from src.api.v1.export import router as export_router
 from src.api.v1.audio import router as audio_router
+from src.utils.security import SecurityMiddleware, RateLimitMiddleware
+from src.models.database import create_tables
+
+# Initialize database
+create_tables()
 
 app = FastAPI(
-    title="Memories API", 
+    title="WhatsApp Memory Vault API", 
     version="1.0.0",
-    description="API for managing and analyzing WhatsApp chat exports",
+    description="Secure API for managing and analyzing WhatsApp chat exports",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-# Add CORS middleware to allow requests from the frontend
+# Security middleware
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "*.localhost"])
+app.add_middleware(SecurityMiddleware)
+app.add_middleware(RateLimitMiddleware, calls=100, period=60)  # 100 calls per minute
+
+# Add CORS middleware with secure configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Specific origins in production
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Content-Disposition"]
 )
 
 # Add request logging middleware
@@ -58,61 +81,6 @@ async def log_requests(request: Request, call_next):
 app.include_router(chats_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
 app.include_router(audio_router, prefix="/api/v1")
-
-# Add a temporary chats endpoint if your router doesn't have one yet
-@app.get("/api/v1/chats", tags=["Temporary"])
-async def get_chats_temp() -> List[Dict[str, Any]]:
-    """
-    Temporary endpoint to provide sample chat data.
-    This can be removed once your actual chats router is fully implemented.
-    """
-    logger.info("Serving temporary chat data")
-    
-    # Return mock data
-    return [
-        {
-            "id": "chat1",
-            "title": "Family Group",
-            "is_group_chat": True,
-            "filename": "Family Group.txt",
-            "participants": ["Mom", "Dad", "You", "Sister"],
-            "message_count": 1243,
-            "date_range": {
-                "start": "2024-01-01T00:00:00Z",
-                "end": "2025-05-01T00:00:00Z"
-            },
-            "first_message_date": "2024-01-01T00:00:00Z",
-            "last_message_date": "2025-05-01T00:00:00Z"
-        },
-        {
-            "id": "chat2",
-            "title": "Work Project",
-            "is_group_chat": True,
-            "filename": "Work Project.txt",
-            "participants": ["Boss", "Colleague1", "You", "Colleague2"],
-            "message_count": 856,
-            "date_range": {
-                "start": "2024-03-15T00:00:00Z",
-                "end": "2025-04-30T00:00:00Z"
-            },
-            "first_message_date": "2024-03-15T00:00:00Z",
-            "last_message_date": "2025-04-30T00:00:00Z"
-        },
-        {
-            "id": "chat3",
-            "title": "Best Friend",
-            "is_group_chat": False,
-            "filename": "BestFriend.txt",
-            "participants": ["Best Friend", "You"],
-            "message_count": 2765,
-            "date_range": {
-                "start": "2023-11-20T00:00:00Z",
-                "end": "2025-05-10T00:00:00Z"
-            },
-            "first_message_date": "2023-11-20T00:00:00Z", 
-            "last_message_date": "2025-05-10T00:00:00Z"
-        }
-    ]
 
 # Health check endpoint with explicit JSONResponse
 @app.get("/health", tags=["Health"])
@@ -212,6 +180,135 @@ async def startup_event():
     """
     logger.info("🚀 WhatsApp Memory Vault API server started")
     logger.info(f"API Documentation available at: http://localhost:8000/docs")
+
+# Storage configuration
+STORAGE_DIR = Path("storage")
+CHATS_DIR = STORAGE_DIR / "chats"
+AUDIO_DIR = STORAGE_DIR / "audio"
+DIARY_DIR = STORAGE_DIR / "diary"
+
+# Create directories if they don't exist
+for directory in [CHATS_DIR, AUDIO_DIR, DIARY_DIR]:
+    directory.mkdir(parents=True, exist_ok=True)
+
+class Message(BaseModel):
+    timestamp: datetime
+    sender: str
+    content: str
+    message_type: str
+    sentiment_score: Optional[float] = None
+
+class ChatSession(BaseModel):
+    id: str
+    messages: List[Message]
+    participants: List[str]
+    start_date: datetime
+    end_date: datetime
+
+@app.post("/api/upload")
+async def upload_chat(file: UploadFile = File(...)):
+    try:
+        # Save uploaded file
+        file_path = CHATS_DIR / file.filename
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Parse chat
+        messages = parse_with_python(str(file_path), user_identity="user")
+        
+        # Detect senders
+        senders = parser.detect_senders(str(file_path))
+        
+        # Calculate sentiment scores
+        for message in messages:
+            if message.message_type == "Text":
+                blob = TextBlob(message.content)
+                message.sentiment_score = blob.sentiment.polarity
+        
+        # Create session
+        session = ChatSession(
+            id=file.filename,
+            messages=messages,
+            participants=senders,
+            start_date=messages[0].timestamp,
+            end_date=messages[-1].timestamp
+        )
+        
+        # Save session
+        session_path = CHATS_DIR / f"{file.filename}.json"
+        with session_path.open("w") as f:
+            json.dump(session.dict(), f, default=str)
+        
+        return {"status": "success", "session_id": file.filename}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/sessions")
+async def list_sessions():
+    sessions = []
+    for file in CHATS_DIR.glob("*.json"):
+        with file.open("r") as f:
+            session = json.load(f)
+            sessions.append(session)
+    return sessions
+
+@app.get("/api/session/{session_id}")
+async def get_session(session_id: str):
+    session_path = CHATS_DIR / f"{session_id}.json"
+    if not session_path.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    with session_path.open("r") as f:
+        return json.load(f)
+
+@app.post("/api/session/{session_id}/diary")
+async def add_diary_entry(session_id: str, entry: dict):
+    diary_path = DIARY_DIR / f"{session_id}_diary.json"
+    entries = []
+    
+    if diary_path.exists():
+        with diary_path.open("r") as f:
+            entries = json.load(f)
+    
+    entries.append({
+        "timestamp": datetime.now().isoformat(),
+        "content": entry["content"],
+        "mood": entry.get("mood"),
+        "tags": entry.get("tags", [])
+    })
+    
+    with diary_path.open("w") as f:
+        json.dump(entries, f)
+    
+    return {"status": "success"}
+
+@app.post("/api/session/{session_id}/audio")
+async def save_audio_note(session_id: str, file: UploadFile = File(...)):
+    try:
+        audio_path = AUDIO_DIR / f"{session_id}_{file.filename}"
+        with audio_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return {"status": "success", "path": str(audio_path)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/analyze-sentiment")
+async def analyze_sentiment(data: dict = Body(...)):
+    text = data.get("text", "")
+    if not text:
+        return {"sentiment_score": 0.0}
+    blob = TextBlob(text)
+    return {"sentiment_score": blob.sentiment.polarity}
+
+@app.post("/api/analyze-batch-sentiment")
+async def analyze_batch_sentiment(data: dict = Body(...)):
+    texts = data.get("texts", [])
+    scores = []
+    for text in texts:
+        blob = TextBlob(text)
+        scores.append(blob.sentiment.polarity)
+    return {"sentiment_scores": scores}
 
 if __name__ == "__main__":
     import uvicorn

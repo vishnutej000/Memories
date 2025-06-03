@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { WhatsAppChat } from '../types';
-import { getChat } from '../services/storageservices';
+import { WhatsAppChat, ChatMessage, Message } from '../types';
+import { getChat } from '../services/storageServices';
 import { useSentimentAnalysis } from '../Hooks/useSentimentAnalysis';
 import { getMostCommonWords, getMessageDistributionByTime } from '../utils/messageUtils';
 import Button from '../Components/UI/Button';
@@ -12,6 +12,10 @@ import SentimentChart from '../Components/Analysis/SentimentChart';
 import EmojiCloud from '../Components/Analysis/EmojiCloud';
 import MessageStats from '../Components/Analysis/MessageStats';
 import ChartComponent from '../Components/Analysis/ChartComponent';
+import HappyMessages from '../Components/Analysis/HappyMessages';
+import TimelineView from '../Components/Analysis/TimelineView';
+import { HybridStorageService } from '../services/hybridStorageService';
+import { PDFExporter } from '../services/pdfExport';
 
 const AnalyticsView: React.FC = () => {
   const { chatId } = useParams<{ chatId: string }>();
@@ -23,7 +27,7 @@ const AnalyticsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'sentiment' | 'words' | 'emoji'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'sentiment' | 'words' | 'emoji' | 'happy' | 'timeline'>('overview');
   
   // Analysis state
   const [activityData, setActivityData] = useState<Array<{ date: string; messageCount: number }>>([]);
@@ -31,8 +35,8 @@ const AnalyticsView: React.FC = () => {
   const [participantMessageCounts, setParticipantMessageCounts] = useState<Record<string, number>>({});
   const [timeDistribution, setTimeDistribution] = useState<Record<string, number>>({});
   
-  // Sentiment analysis
-  const { isAnalyzing, analyzeMessages, generateSentimentData } = useSentimentAnalysis();
+  // Get sentiment analysis functions
+  const { analyzeSentiment, analyzeBatchSentiment, isAnalyzing } = useSentimentAnalysis();
   const [sentimentData, setSentimentData] = useState<Array<{ date: string; average: number; messages: number }>>([]);
   const [showAnalyzeButton, setShowAnalyzeButton] = useState(true);
   
@@ -117,7 +121,33 @@ const AnalyticsView: React.FC = () => {
     };
     
     loadChat();
-  }, [chatId, navigate, generateSentimentData]);
+  }, [chatId, navigate]);
+  
+  // Generate sentiment data
+  const generateSentimentData = (messages: ChatMessage[]) => {
+    const sentimentByDate: Record<string, { total: number; count: number }> = {};
+    
+    messages.forEach(message => {
+      if (typeof message.sentimentScore !== 'number') return;
+      
+      const date = new Date(message.timestamp).toISOString().split('T')[0];
+      
+      if (!sentimentByDate[date]) {
+        sentimentByDate[date] = { total: 0, count: 0 };
+      }
+      
+      sentimentByDate[date].total += message.sentimentScore;
+      sentimentByDate[date].count += 1;
+    });
+    
+    return Object.entries(sentimentByDate)
+      .map(([date, { total, count }]) => ({
+        date,
+        average: total / count,
+        messages: count
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  };
   
   // Handle sentiment analysis
   const handleAnalyzeSentiment = async () => {
@@ -125,7 +155,17 @@ const AnalyticsView: React.FC = () => {
     
     try {
       // Analyze messages
-      const analyzedMessages = await analyzeMessages(chat.messages);
+      const analyzedMessages = await Promise.all(
+        chat.messages.map(async message => {
+          if (!message.content) return message;
+          
+          const sentimentScore = await analyzeSentiment(message.content);
+          return {
+            ...message,
+            sentimentScore
+          };
+        })
+      );
       
       // Update chat with analyzed messages
       setChat({
@@ -142,6 +182,55 @@ const AnalyticsView: React.FC = () => {
     } catch (err) {
       console.error('Error analyzing sentiment:', err);
       setError(err instanceof Error ? err.message : 'Failed to analyze sentiment');
+    }
+  };
+  
+  // Handle sharing a happy message
+  const handleShareMessage = async (message: ChatMessage) => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Happy Message from Chat',
+          text: `${message.sender}: ${message.content}`,
+          url: window.location.href
+        });
+      } else {
+        // Fallback: Copy to clipboard
+        const text = `${message.sender}: ${message.content}`;
+        await navigator.clipboard.writeText(text);
+        alert('Message copied to clipboard!');
+      }
+    } catch (err) {
+      console.error('Error sharing message:', err);
+      alert('Failed to share message');
+    }
+  };
+
+  // Handle exporting happy messages
+  const handleExportMessages = async (messages: ChatMessage[]) => {
+    try {
+      if (!chat) return;
+
+      // Convert ChatMessage[] to Message[]
+      const exportMessages: Message[] = messages.map(msg => ({
+        id: msg.id,
+        timestamp: msg.timestamp,
+        sender: msg.sender,
+        content: msg.content,
+        message_type: msg.isMedia ? 'Media' : 'Text',
+        sentiment_score: msg.sentimentScore || null
+      }));
+
+      // Export as PDF
+      await PDFExporter.exportToPDF({
+        messages: exportMessages,
+        currentUser: chat.participants[0], // Use first participant as current user
+        pageSize: 'A4',
+        orientation: 'portrait'
+      });
+    } catch (err) {
+      console.error('Error exporting messages:', err);
+      alert('Failed to export messages');
     }
   };
   
@@ -260,7 +349,7 @@ const AnalyticsView: React.FC = () => {
               label: 'Words',
               icon: (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                 </svg>
               )
             },
@@ -273,15 +362,32 @@ const AnalyticsView: React.FC = () => {
                 </svg>
               )
             },
+            {
+              id: 'happy',
+              label: 'Happy Messages',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )
+            },
+            {
+              id: 'timeline',
+              label: 'Timeline',
+              icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              )
+            }
           ]}
           activeTabId={activeTab}
-          onChange={(id) => setActiveTab(id as any)}
+          onChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
         />
         
-        {/* Tab content */}
         <div className="mt-6">
           {activeTab === 'overview' && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6">Chat Overview</h2>
                 
@@ -687,7 +793,7 @@ const AnalyticsView: React.FC = () => {
                               plugins: {
                                 tooltip: {
                                   callbacks: {
-                                    label: function(context) {
+                                    label: function(context: any) {
                                       const label = context.label || '';
                                       const value = context.raw;
                                       const total = context.dataset.data.reduce((acc: number, curr: number) => acc + curr, 0);
@@ -747,6 +853,38 @@ const AnalyticsView: React.FC = () => {
                     }}
                   />
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {activeTab === 'happy' && (
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6">
+                  Happy Messages
+                </h2>
+                <HappyMessages
+                  messages={chat?.messages || []}
+                  onShare={handleShareMessage}
+                  onExport={handleExportMessages}
+                />
+              </div>
+            </div>
+          )}
+          
+          {activeTab === 'timeline' && (
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6">
+                  Message Timeline
+                </h2>
+                <TimelineView
+                  messages={chat?.messages || []}
+                  onMessageClick={(message) => {
+                    // Implement message click functionality
+                    console.log('Message clicked:', message);
+                  }}
+                />
               </div>
             </div>
           )}

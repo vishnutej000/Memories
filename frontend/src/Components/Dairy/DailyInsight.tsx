@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChatMessage } from '../../types';
 import { getMostCommonWords } from '../../utils/messageUtils';
-import { formatDate } from '../../utils/date.Utils';
+import { formatDate } from '../../utils/dateUtils';
 
 interface DailyInsightProps {
   messages: ChatMessage[];

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { ChatMessage, SearchCriteria } from '../types';
-import { searchMessages } from '../../services/whatsappServices';
+import { ChatMessage, SearchCriteria } from '../../types';
+import { messageService } from '../../services/MessageService';
 
 interface UseSearchProps {
   chatId: string;
@@ -47,11 +47,10 @@ export function useSearch({ chatId }: UseSearchProps) {
           : undefined,
         hasMedia,
         hasEmoji,
-        sentimentRange
-      };
+        sentimentRange      };
       
       // Perform search
-      const searchResults = await searchMessages(criteria);
+      const searchResults = await messageService.searchMessages(criteria);
       setResults(searchResults);
       
       // Clear error if search was successful

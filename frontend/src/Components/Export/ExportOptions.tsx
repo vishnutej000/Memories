@@ -3,7 +3,7 @@ import { WhatsAppChat, ExportOptions as ExportOptionsType } from '../../types';
 import { useTheme } from '../contexts/ThemeContext';
 import Button from '../UI/Button';
 import Spinner from '../UI/Spinner';
-import { formatDate } from '../../utils/date.Utils';
+import { formatDate } from '../../utils/dateUtils';
 
 // Mock function for actual export logic (would be implemented in service)
 const exportChat = async (chat: WhatsAppChat, options: ExportOptionsType): Promise<{ url: string; filename: string }> => {

@@ -2,7 +2,7 @@ import React from 'react';
 import { ChatMessage } from '../../types';
 import Spinner from '../UI/Spinner';
 import { formatMessagePreview } from '../../utils/messageUtils';
-import { formatDateTime } from '../../utils/date.Utils';
+import { formatDateTime } from '../../utils/dateUtils';
 
 interface SearchResultsListProps {
   results: ChatMessage[];

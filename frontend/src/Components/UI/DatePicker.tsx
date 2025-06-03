@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDatesBetween, formatCalendarDate } from '../../utils/date.Utils';
+import { getDatesBetween, formatCalendarDate } from '../../utils/dateUtils';
 import Button from './Button';
 
 interface DatePickerProps {

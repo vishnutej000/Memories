@@ -29,7 +29,7 @@ class Message(BaseModel):
     type: MessageType = MessageType.TEXT
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "msg_1234",
                 "timestamp": "2023-05-18T08:39:07Z",

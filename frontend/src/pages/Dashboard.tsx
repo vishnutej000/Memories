@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getAllChats } from '../services/whatsappService';
-import { hasAnyData, getStorageSize } from '../services/storageService';
+import HybridStorageService from '../services/hybridStorageService';
 import { WhatsAppChat } from '../types';
 import { useTheme } from '../Components/contexts/ThemeContext';
-import Button from '../components/UI/Button';
-import Spinner from '../components/UI/Spinner';
-import Modal from '../components/UI/Modal';
-import WhatsAppUploader from '../components/FileUpload/WhatsAppUploader';
-import { formatDate } from '../utils/dateUtils';
+import Button from '../Components/UI/Button';
+import Spinner from '../Components/UI/Spinner';
+import Modal from '../Components/UI/Modal';
+import WhatsAppUploader from '../Components/FileUpload/WhatsAppUploader';
+import { formatRelativeTime } from '../utils/dateUtils';
 
 const Dashboard: React.FC = () => {
   const [chats, setChats] = useState<WhatsAppChat[]>([]);
@@ -16,8 +15,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [hasData, setHasData] = useState(false);
-  const [dbSize, setDbSize] = useState({ size: 0, formatted: '0 B' });
-  const { darkMode, toggleDarkMode } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   // Load chats and check if data exists
@@ -26,17 +24,17 @@ const Dashboard: React.FC = () => {
       try {
         setIsLoading(true);
         
-        // Check if any data exists
-        const dataExists = await hasAnyData();
+        // Check if any data exists using hybrid storage
+        const dataExists = await HybridStorageService.hasAnyData();
         setHasData(dataExists);
         
-        // Get storage size
-        const size = await getStorageSize();
-        setDbSize(size);
+        // Get storage size (this will need to be implemented or removed)
+        // const size = await getStorageSize();
+        // setDbSize(size);
         
         // Load chats if data exists
         if (dataExists) {
-          const allChats = await getAllChats();
+          const allChats = await HybridStorageService.getAllChats();
           setChats(allChats);
         }
       } catch (err) {
@@ -44,17 +42,20 @@ const Dashboard: React.FC = () => {
         console.error('Error loading data:', err);
       } finally {
         setIsLoading(false);
-      }
-    };
+      }    };
     
     loadData();
   }, []);
-  
   // Handle chat upload completion
   const handleUploadComplete = (chat: WhatsAppChat) => {
     setChats(prevChats => [chat, ...prevChats]);
     setShowUploadModal(false);
     setHasData(true);
+  };
+
+  // Handle upload error
+  const handleUploadError = (error: string) => {
+    setError(error);
   };
 
   // Render loading state
@@ -88,13 +89,12 @@ const Dashboard: React.FC = () => {
                 Settings
               </Button>
             </Link>
-            
-            <button
-              onClick={toggleDarkMode}
+              <button
+              onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-white/10 transition-colors"
-              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={theme === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
             >
-              {darkMode ? (
+              {theme === 'dark' ? (
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
@@ -127,18 +127,11 @@ const Dashboard: React.FC = () => {
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-4">
             {hasData ? 'Welcome back to your Memory Vault' : 'Welcome to WhatsApp Memory Vault'}
-          </h2>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          </h2>          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
             {hasData 
               ? 'Explore your conversations, journal entries, and insights below.' 
               : 'Upload your first WhatsApp chat export to get started preserving your memories.'}
           </p>
-          
-          {hasData && (
-            <div className="mt-4 text-gray-500 dark:text-gray-400 text-sm">
-              Storage used: {dbSize.formatted}
-            </div>
-          )}
         </div>
         
         {/* Feature grid */}
@@ -294,7 +287,7 @@ const Dashboard: React.FC = () => {
                       
                       <div>
                         <span className="text-xs">
-                          {formatDate(chat.startDate)} - {formatDate(chat.endDate)}
+                          {formatRelativeTime(chat.startDate)} - {formatRelativeTime(chat.endDate)}
                         </span>
                       </div>
                     </div>
@@ -394,14 +387,16 @@ const Dashboard: React.FC = () => {
         </div>
       </footer>
       
-      {/* Upload Modal */}
-      <Modal
+      {/* Upload Modal */}      <Modal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         title="Upload WhatsApp Chat"
         size="medium"
       >
-        <WhatsAppUploader onUploadComplete={handleUploadComplete} />
+        <WhatsAppUploader 
+          onUploadComplete={handleUploadComplete}
+          onError={handleUploadError}
+        />
       </Modal>
     </div>
   );

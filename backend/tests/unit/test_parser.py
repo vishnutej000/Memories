@@ -4,7 +4,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from core.parsing.adapter import parse_with_python # type: ignore
+from src.core.parsing.adapter import parse_with_python # type: ignore
 
 TEST_DATA_DIR = Path(__file__).parent.parent / "fixtures"
 

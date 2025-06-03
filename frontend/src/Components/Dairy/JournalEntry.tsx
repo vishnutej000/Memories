@@ -1,6 +1,6 @@
 import React from 'react';
 import { JournalEntry } from '../../types';
-import { formatDateTime } from '../../utils/date.Utils';
+import { formatDateTime } from '../../utils/dateUtils';
 import Button from '../UI/Button';
 
 interface JournalEntryProps {

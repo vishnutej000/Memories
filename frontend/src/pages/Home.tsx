@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WhatsAppChat } from '../types';
-import { getAllChats } from '../services/storageservices';
-import { uploadChatFile } from '../services/whatsappServices';
+import HybridStorageService from '../services/hybridStorageService';
+import { uploadChatFile, detectParticipants } from '../services/whatsappServices';
 import { useTheme } from '../Components/contexts/ThemeContext';
+import ParticipantSelector from '../Components/FileUpload/ParticipantSelector';
 
 import Spinner from '../Components/UI/Spinner';
-import {  formatRelativeTime } from '../utils/date.Utils';
+import { formatRelativeTime } from '../utils/dateUtils';
 
 interface HomeProps {
   hasData: boolean;
@@ -14,7 +15,7 @@ interface HomeProps {
 
 const Home: React.FC<HomeProps> = ({ hasData }) => {
   const navigate = useNavigate();
-  const { darkMode, toggleDarkMode } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   
   const [chats, setChats] = useState<WhatsAppChat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,12 +23,18 @@ const Home: React.FC<HomeProps> = ({ hasData }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
-  // Load chats
+  // Participant selection state
+  const [showParticipantSelector, setShowParticipantSelector] = useState(false);
+  const [detectedParticipants, setDetectedParticipants] = useState<string[]>([]);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [isDetectingParticipants, setIsDetectingParticipants] = useState(false);
+    // Load chats
   useEffect(() => {
     const loadChats = async () => {
       try {
         setIsLoading(true);
-        const chatsList = await getAllChats();
+          // Load chats using hybrid storage service
+        const chatsList = await HybridStorageService.getAllChats();
         setChats(chatsList);
       } catch (err) {
         console.error('Error loading chats:', err);
@@ -43,27 +50,64 @@ const Home: React.FC<HomeProps> = ({ hasData }) => {
       setIsLoading(false);
     }
   }, [hasData]);
-  
-  // Handle file upload
+    // Handle file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    console.log('📁 File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
+    
+    try {
+      setIsDetectingParticipants(true);
+      setError(null);
+      
+      console.log('🔍 Starting participant detection...');
+      // First, detect participants from the file
+      const participants = await detectParticipants(file);
+      console.log('✅ Participants detected:', participants);
+      
+      if (participants.length === 0) {
+        throw new Error('No participants found in the chat file. Please check the file format.');
+      }
+      
+      if (participants.length === 1) {
+        console.log('👤 Single participant found, proceeding directly');
+        // Only one participant found, proceed directly
+        await proceedWithUpload(file, participants[0]);
+      } else {
+        console.log('👥 Multiple participants found, showing selector');
+        // Multiple participants found, show selector
+        setDetectedParticipants(participants);
+        setPendingFile(file);
+        setShowParticipantSelector(true);
+      }
+      
+      // Reset file input
+      e.target.value = '';
+    } catch (err) {
+      console.error('❌ Error detecting participants:', err);
+      setError(err instanceof Error ? err.message : 'Failed to detect participants');
+    } finally {
+      setIsDetectingParticipants(false);
+    }
+  };
+
+  // Proceed with upload after participant selection
+  const proceedWithUpload = async (file: File, selectedParticipant: string) => {
     try {
       setIsUploading(true);
       setError(null);
       
-      // Upload and parse chat
+      // Upload and parse chat with selected participant
       const chat = await uploadChatFile(file, (progress) => {
         setUploadProgress(progress);
-      });
+      }, true, selectedParticipant);
       
       // Add to chats list
       setChats(prev => [...prev, chat]);
       
       // Reset upload state
       setUploadProgress(0);
-      e.target.value = '';
       
       // Navigate to chat view
       navigate(`/chat/${chat.id}`);
@@ -73,6 +117,24 @@ const Home: React.FC<HomeProps> = ({ hasData }) => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Handle participant selection
+  const handleParticipantSelected = (selectedParticipant: string) => {
+    if (pendingFile) {
+      setShowParticipantSelector(false);
+      proceedWithUpload(pendingFile, selectedParticipant);
+      setPendingFile(null);
+      setDetectedParticipants([]);
+    }
+  };
+
+  // Handle participant selection cancellation
+  const handleParticipantSelectionCancel = () => {
+    setShowParticipantSelector(false);
+    setPendingFile(null);
+    setDetectedParticipants([]);
+    setIsDetectingParticipants(false);
   };
   
   // Render loading state
@@ -96,12 +158,11 @@ const Home: React.FC<HomeProps> = ({ hasData }) => {
             <h1 className="text-xl font-bold">WhatsApp Memory Vault</h1>
           </div>
           
-          <div className="flex space-x-2">
-            <button
-              onClick={toggleDarkMode}
+          <div className="flex space-x-2">            <button
+              onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-white/10 focus:outline-none"
             >
-              {darkMode ? (
+              {theme === 'dark' ? (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
@@ -137,17 +198,18 @@ const Home: React.FC<HomeProps> = ({ hasData }) => {
           
           <div className="space-y-4">
             <div className="flex justify-center">
-              <label className="cursor-pointer bg-whatsapp-dark hover:bg-whatsapp-teal text-white font-medium py-2 px-4 rounded-md inline-flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <label className="cursor-pointer bg-whatsapp-dark hover:bg-whatsapp-teal text-white font-medium py-2 px-4 rounded-md inline-flex items-center">                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                {isUploading ? 'Uploading...' : 'Select WhatsApp Export File'}
+                {isDetectingParticipants ? 'Detecting Participants...' : 
+                 isUploading ? 'Uploading...' : 
+                 'Select WhatsApp Export File'}
                 <input
                   type="file"
                   accept=".txt"
                   className="hidden"
                   onChange={handleFileUpload}
-                  disabled={isUploading}
+                  disabled={isUploading || isDetectingParticipants}
                 />
               </label>
             </div>
@@ -233,13 +295,22 @@ const Home: React.FC<HomeProps> = ({ hasData }) => {
           </div>
         )}
       </main>
-      
-      {/* Footer */}
+        {/* Footer */}
       <footer className="mt-auto py-6 px-4 text-center text-sm text-gray-500 dark:text-gray-400">
         <p>
           WhatsApp Memory Vault © 2025 • All your data is stored locally in your browser
         </p>
       </footer>
+
+      {/* Participant Selector Modal */}
+      {showParticipantSelector && (
+        <ParticipantSelector
+          participants={detectedParticipants}
+          onSelect={handleParticipantSelected}
+          onCancel={handleParticipantSelectionCancel}
+          isLoading={isUploading}
+        />
+      )}
     </div>
   );
 };

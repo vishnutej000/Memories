@@ -1,5 +1,21 @@
 // Core Types for WhatsApp Memory Vault
 
+// Backend-compatible Chat Data (matches backend API response)
+export interface BackendChat {
+  id: string;
+  title: string;
+  is_group_chat: boolean;
+  filename: string;
+  participants: string[];
+  message_count: number;
+  date_range: {
+    start: string;
+    end: string;
+  };
+  first_message_date: string;
+  last_message_date: string;
+}
+
 // WhatsApp Chat Data
 export interface WhatsAppChat {
   id: string;
@@ -157,6 +173,27 @@ export interface SearchResultWithContext {
   context?: {
     before: ChatMessage[];
     after: ChatMessage[];
-  };
-  matchIndexes?: number[];
+  };  matchIndexes?: number[];
+}
+
+export interface ChatSession {
+    id: string;
+    messages: ChatMessage[];
+    participants: string[];
+    start_date: string;
+    end_date: string;
+}
+
+export interface DiaryEntry {
+    id: string;
+    date: string;
+    content: string;
+    mood: number;
+    audioUrl?: string;
+    tags: string[];
+}
+
+export interface SentimentAnalysisResult {
+    sentiment_score: number;
+    confidence: number;
 }

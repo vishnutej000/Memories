@@ -1,5 +1,5 @@
 import { ChatMessage, SearchCriteria, SearchResultWithContext } from '../types';
-import { getChat } from './whatsappServices';
+import HybridStorageService from './hybridStorageService';
 
 /**
  * Service for message-related operations
@@ -9,11 +9,10 @@ class MessageService {
    * Search messages in a chat based on search criteria
    * @param criteria The search criteria
    * @returns Array of messages matching the criteria
-   */
-  public async searchMessages(criteria: SearchCriteria): Promise<ChatMessage[]> {
+   */  public async searchMessages(criteria: SearchCriteria): Promise<ChatMessage[]> {
     try {
-      // Get the chat
-      const chat = await getChat(criteria.chatId);
+      // Get the chat using hybrid storage service
+      const chat = await HybridStorageService.getChat(criteria.chatId);
       
       // Filter messages based on search criteria
       let results = [...chat.messages];
@@ -90,10 +89,9 @@ class MessageService {
   public async searchMessagesWithContext(
     criteria: SearchCriteria, 
     contextSize: number = 2
-  ): Promise<SearchResultWithContext[]> {
-    try {
+  ): Promise<SearchResultWithContext[]> {    try {
       // Get the chat
-      const chat = await getChat(criteria.chatId);
+      const chat = await HybridStorageService.getChat(criteria.chatId);
       const allMessages = chat.messages;
       
       // Find matching messages
@@ -164,10 +162,9 @@ class MessageService {
     minLength: number = 3,
     maxLength: number = 5,
     limit: number = 10
-  ): Promise<Array<{ phrase: string; count: number }>> {
-    try {
+  ): Promise<Array<{ phrase: string; count: number }>> {    try {
       // Get chat messages
-      const chat = await getChat(chatId);
+      const chat = await HybridStorageService.getChat(chatId);
       const messages = chat.messages.filter(m => !m.isDeleted && !m.isMedia);
       
       // Extract phrases of different lengths
@@ -221,10 +218,9 @@ class MessageService {
     responseTime: number;
     activeHours: Record<number, number>;
     topWords: Array<{ word: string; count: number }>;
-  }> {
-    try {
+  }> {    try {
       // Get chat
-      const chat = await getChat(chatId);
+      const chat = await HybridStorageService.getChat(chatId);
       
       // Filter messages by sender
       const userMessages = chat.messages.filter(m => m.sender === sender);

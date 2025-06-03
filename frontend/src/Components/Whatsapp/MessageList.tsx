@@ -1,7 +1,7 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { ChatMessage } from '../../types';
 import { groupMessagesByDate } from '../../utils/messageUtils';
-import { formatDate } from '../../utils/date.Utils';
+import { formatDate } from '../../utils/dateUtils';
 import MessageBubble from './MessageBubble';
 import VirtualScrollView from '../UI/VirtualScrollView';
 
@@ -10,6 +10,8 @@ interface MessageListProps {
   currentUser: string;
   showSentiment?: boolean;
   keyEventDates?: Set<string>;
+  filterMode?: 'all' | 'participant'; // New prop to control filtering mode
+  selectedParticipant?: string; // Participant to filter by when in participant mode
 }
 
 export interface MessageListRef {
@@ -18,22 +20,31 @@ export interface MessageListRef {
 }
 
 const MessageList = forwardRef<MessageListRef, MessageListProps>(
-  ({ messages, currentUser, showSentiment = false, keyEventDates }, ref) => {
+  ({ messages, currentUser, showSentiment = false, keyEventDates, filterMode = 'all', selectedParticipant }, ref) => {
     const [groupedMessages, setGroupedMessages] = useState<Record<string, ChatMessage[]>>({});
     const [allDates, setAllDates] = useState<string[]>([]);
     const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null);
     
     const virtualScrollRef = React.useRef<any>(null);
     
+    // Filter messages based on mode and selectedParticipant
+    const filteredMessages = React.useMemo(() => {
+      if (filterMode === 'participant' && selectedParticipant) {
+        // Only show messages from the selected participant
+        return messages.filter(msg => msg.sender === selectedParticipant);
+      }
+      return messages;
+    }, [messages, selectedParticipant, filterMode]);
+    
     // Group messages by date when messages change
     useEffect(() => {
-      const grouped = groupMessagesByDate(messages);
+      const grouped = groupMessagesByDate(filteredMessages);
       setGroupedMessages(grouped);
       
       // Extract and sort dates
       const dates = Object.keys(grouped).sort();
       setAllDates(dates);
-    }, [messages]);
+    }, [filteredMessages]);
     
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
